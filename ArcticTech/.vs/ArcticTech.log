@@ -1,0 +1,81 @@
+﻿D:\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(519,5): warning MSB8004: Intermediate Directory does not end with a trailing slash.  This build instance will add the slash as it is required to allow proper evaluation of the Intermediate Directory.
+  Scanning sources for module dependencies...
+  UtlReference.h
+  UtlStringList.h
+  Compiling...
+  UtlReference.h
+  UtlStringList.h
+  c_sounds.cpp
+  AntiAim.cpp
+  Bridge.cpp
+  Hook.cpp
+  AutoPeek.cpp
+  GameMovement.cpp
+  EventListner.cpp
+  Misc.cpp
+  PingReducer.cpp
+  PingSpike.cpp
+  Prediction.cpp
+  AnimationSystem.cpp
+  AutoWall.cpp
+  Exploits.cpp
+  LagCompensation.cpp
+  Ragebot.cpp
+  Resolver.cpp
+  ShotManager.cpp
+  Chams.cpp
+  ESP.cpp
+  Generating Code...
+  Compiling...
+  GlovesChanger.cpp
+  Glow.cpp
+  GrenadePrediction.cpp
+  SkinChanger.cpp
+  WeaponIcons.cpp
+  World.cpp
+  imgui_impl_dx9.cpp
+  imgui_impl_win32.cpp
+  imgui.cpp
+  imgui_draw.cpp
+  imgui_tables.cpp
+  imgui_widgets.cpp
+  panorama_engine.cpp
+  Config.cpp
+  dllmain.cpp
+  Hooks.cpp
+  CGameRules.cpp
+  CGlobalVarsBase.cpp
+  DebugOverlay.cpp
+  IClientEntityList.cpp
+  Generating Code...
+  Compiling...
+  IEffects.cpp
+  IEngineTrace.cpp
+  Memory.cpp
+  Interfaces.cpp
+  CBaseCombatWeapon.cpp
+  CBaseEntity.cpp
+  CBasePlayer.cpp
+  checksum_crc.cpp
+  CUserCmd.cpp
+  KeyValues.cpp
+  Vector.cpp
+  NetMessages.cpp
+  Requests.cpp
+  UI.cpp
+  UI_backend.cpp
+  Console.cpp
+  Globals.cpp
+  Math.cpp
+  NetVars.cpp
+  Render.cpp
+  Generating Code...
+  Compiling...
+  Utils.cpp
+  VMTHook.cpp
+  Generating Code...
+     Creating library C:\Users\Dante\Documents\GitHub\Sunset-Internal-Csgo\Debug\Sunset-CSGO.lib and object C:\Users\Dante\Documents\GitHub\Sunset-Internal-Csgo\Debug\Sunset-CSGO.exp
+MSVCRTD.lib(initializers.obj) : warning LNK4098: defaultlib 'libcmt.lib' conflicts with use of other libs; use /NODEFAULTLIB:library
+detours.lib(detours.obj) : warning LNK4099: PDB '' was not found with 'detours.lib(detours.obj)' or at ''; linking object as if no debug info
+detours.lib(disasm.obj) : warning LNK4099: PDB '' was not found with 'detours.lib(disasm.obj)' or at ''; linking object as if no debug info
+  ArcticTech.vcxproj -> C:\Users\Dante\Documents\GitHub\Sunset-Internal-Csgo\Debug\Sunset-CSGO.dll

@@ -1,0 +1,22 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": ".\\.vs\\UtlStringList.obj",
+            "outputs": [
+                ".\\.vs\\UtlStringList.h_6824C3F7ACA01920.ifc.dt.module.json",
+                ".\\.vs\\UtlStringList.h_6824C3F7ACA01920.ifc.dt.d.json",
+                ".\\.vs\\UtlStringList.h.ifc"
+            ],
+            "provides": [
+                {
+                    "logical-name": "C:\\Users\\Dante\\Documents\\GitHub\\Sunset-Internal-Csgo\\ArcticTech\\SDK\\Misc\\UtlStringList.h",
+                    "source-path": "c:\\users\\dante\\documents\\github\\sunset-internal-csgo\\arctictech\\sdk\\misc\\utlstringlist.h",
+                    "lookup-method": "absolute"
+                }
+            ],
+            "requires": []
+        }
+    ]
+}

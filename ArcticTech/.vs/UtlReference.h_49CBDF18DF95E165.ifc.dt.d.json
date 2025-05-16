@@ -1,0 +1,12 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\users\\dante\\documents\\github\\asdasdasd\\arctictech\\sdk\\misc\\utlreference.h",
+        "ProvidedModule": "",
+        "Includes": [
+            "c:\\users\\dante\\documents\\github\\asdasdasd\\arctictech\\sdk\\misc\\utlvector.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

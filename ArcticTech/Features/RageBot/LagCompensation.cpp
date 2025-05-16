@@ -1,3 +1,4 @@
+#define TIME_TO_TICKS( dt ) ( (int)( 0.5f + (float)(dt) / GlobalVars->interval_per_tick ) )
 #include "LagCompensation.h"
 #include "AnimationSystem.h"
 #include "../Misc/Prediction.h"
@@ -5,7 +6,7 @@
 #include "../../SDK/Globals.h"    // Zawiera definicjê extern CVars cvars; i extern Ctx_t ctx;
 #include "../AntiAim/AntiAim.h"
 #include "../../Utils/Utils.h"
-#include <algorithm>
+#include <algorithm> // MASZ TO!
 #include "../../SDK/NetMessages.h"
 #include "../Visuals/ESP.h"
 #include "Exploits.h"
@@ -164,65 +165,149 @@ void CLagCompensation::OnNetUpdate() {
 }
 
 
-LagRecord* CLagCompensation::ExtrapolateRecord(LagRecord* record, int ticks) {
-    if (!record || !record->player || ticks <= 0) {
-        return record; 
+LagRecord* CLagCompensation::ExtrapolateRecord(LagRecord* current_record, int ticks_to_extrapolate) {
+    if (!current_record || !current_record->player || !current_record->player->IsAlive() || ticks_to_extrapolate <= 0) {
+        return nullptr;
     }
 
-    const float time_to_extrapolate = TICKS_TO_TIME(ticks);
-
-    auto& extrapolated_history = extrapolated_records[record->player->EntIndex()];
-    while (extrapolated_history.size() > 32) { 
-        extrapolated_history.pop_back(); 
+    CBasePlayer* player = current_record->player;
+    const int player_idx = player->EntIndex();
+    if (player_idx < 0 || player_idx >= 64) {
+        return nullptr;
     }
 
-    LagRecord* new_record = &extrapolated_history.emplace_front();
-    *new_record = *record; 
+    const float time_delta_per_tick = GlobalVars->interval_per_tick;
 
-    new_record->m_flSimulationTime = record->m_flSimulationTime + time_to_extrapolate;
-    new_record->update_tick = record->update_tick + ticks; 
+    const int max_reasonable_extrapolation_ticks_calculated = TIME_TO_TICKS(0.22f); // Zmieniona nazwa dla pewnoœci
 
-    Vector current_origin = record->m_vecOrigin;
-    Vector current_velocity = record->m_vecVelocity; 
-    int current_flags = record->m_fFlags;
-    
-    Vector player_mins = record->m_vecMins; 
-    Vector player_maxs = record->m_vecMaxs;
+    // Zamiast std::min, u¿yjmy zwyk³ego if-a, ¿eby zobaczyæ, czy to przejdzie
+    if (ticks_to_extrapolate > max_reasonable_extrapolation_ticks_calculated) {
+        ticks_to_extrapolate = max_reasonable_extrapolation_ticks_calculated;
+    }
 
-    new_record->m_vecOrigin = current_origin;
-    new_record->m_vecVelocity = current_velocity; 
-    new_record->m_fFlags = current_flags;
-    new_record->m_vecAbsOrigin = new_record->m_vecOrigin; 
+    // Teraz linia, która by³a oryginalnie 183 (if poni¿ej)
+    if (ticks_to_extrapolate <= 0) {
+        return nullptr;
+    }
 
-    Vector origin_delta = new_record->m_vecOrigin - record->m_vecOrigin;
+    const float total_extrapolation_time = static_cast<float>(ticks_to_extrapolate) * time_delta_per_tick;
 
-    if (origin_delta.LengthSqr() > 0.000001f) { 
-        for (int j = 0; j < MAXSTUDIOBONES; ++j) {
-            new_record->bone_matrix[j][0][3] += origin_delta.x;
-            new_record->bone_matrix[j][1][3] += origin_delta.y;
-            new_record->bone_matrix[j][2][3] += origin_delta.z;
+    auto& extrapolated_history = extrapolated_records[player_idx];
+    if (extrapolated_history.size() >= 32) {
+        extrapolated_history.pop_back();
+    }
+    LagRecord* extrapolated_rec = &extrapolated_history.emplace_front();
+    *extrapolated_rec = *current_record;
 
-            new_record->aim_matrix[j][0][3] += origin_delta.x;
-            new_record->aim_matrix[j][1][3] += origin_delta.y;
-            new_record->aim_matrix[j][2][3] += origin_delta.z;
-            
-            new_record->opposite_matrix[j][0][3] += origin_delta.x;
-            new_record->opposite_matrix[j][1][3] += origin_delta.y;
-            new_record->opposite_matrix[j][2][3] += origin_delta.z;
+    Vector predicted_velocity = current_record->m_vecVelocity;
+    if (!(current_record->m_fFlags & FL_ONGROUND)) {
+        static ConVar* sv_gravity_cv = nullptr;
+        if (!sv_gravity_cv) sv_gravity_cv = CVar->FindVar("sv_gravity");
+        float gravity = sv_gravity_cv ? sv_gravity_cv->GetFloat() : 800.0f;
+        predicted_velocity.z -= gravity * total_extrapolation_time;
+    }
 
-            new_record->clamped_matrix[j][0][3] += origin_delta.x;
-            new_record->clamped_matrix[j][1][3] += origin_delta.y;
-            new_record->clamped_matrix[j][2][3] += origin_delta.z;
+    Vector predicted_origin = current_record->m_vecOrigin + (predicted_velocity * total_extrapolation_time);
 
-            new_record->safe_matrix[j][0][3] += origin_delta.x;
-            new_record->safe_matrix[j][1][3] += origin_delta.y;
-            new_record->safe_matrix[j][2][3] += origin_delta.z;
+    int predicted_flags = current_record->m_fFlags;
+
+
+    extrapolated_rec->m_flSimulationTime = current_record->m_flSimulationTime + total_extrapolation_time;
+    extrapolated_rec->update_tick = TIME_TO_TICKS(extrapolated_rec->m_flSimulationTime);
+    extrapolated_rec->m_vecOrigin = predicted_origin;
+    extrapolated_rec->m_vecVelocity = predicted_velocity;
+    extrapolated_rec->m_fFlags = predicted_flags;
+    extrapolated_rec->m_vecAbsOrigin = predicted_origin;
+    extrapolated_rec->m_angEyeAngles = current_record->m_angEyeAngles;
+    extrapolated_rec->m_flDuckAmout = current_record->m_flDuckAmout;
+    extrapolated_rec->resolver_data = current_record->resolver_data;
+
+
+    float g_backup_curtime = GlobalVars->curtime;
+    float g_backup_frametime = GlobalVars->frametime;
+    int g_backup_tickcount = GlobalVars->tickcount;
+
+    CBasePlayer* real_player_object = reinterpret_cast<CBasePlayer*>(EntityList->GetClientEntity(player_idx));
+    if (!real_player_object || real_player_object != player) {
+        return nullptr;
+    }
+
+    Vector backup_player_origin = player->m_vecOrigin();
+    Vector backup_player_velocity = player->m_vecVelocity();
+    int backup_player_flags = player->m_fFlags();
+    QAngle backup_player_abs_angles = player->GetAbsAngles();
+    QAngle backup_player_eye_angles = player->m_angEyeAngles();
+    float backup_player_duck_amount = player->m_flDuckAmount();
+    float backup_player_lby = player->m_flLowerBodyYawTarget();
+    std::array<float, 24> backup_player_pose_params = player->m_flPoseParameter();
+    AnimationLayer backup_player_layers[13];
+    memcpy(backup_player_layers, player->GetAnimlayers(), sizeof(AnimationLayer) * 13);
+
+    CCSGOPlayerAnimationState backup_player_animstate_obj;
+    CCSGOPlayerAnimationState* player_animstate_ptr = player->GetAnimstate();
+    if (player_animstate_ptr) {
+        backup_player_animstate_obj = *player_animstate_ptr;
+    }
+    else {
+        return nullptr; 
+    }
+
+    player->m_vecOrigin() = extrapolated_rec->m_vecOrigin;
+    player->m_vecVelocity() = extrapolated_rec->m_vecVelocity;
+    player->m_fFlags() = extrapolated_rec->m_fFlags;
+    player->SetAbsOrigin(extrapolated_rec->m_vecAbsOrigin);
+    player->m_angEyeAngles() = extrapolated_rec->m_angEyeAngles;
+    player->m_flDuckAmount() = extrapolated_rec->m_flDuckAmout;
+    memcpy(player->GetAnimlayers(), current_record->animlayers, sizeof(AnimationLayer) * 13);
+    *player_animstate_ptr = backup_player_animstate_obj; 
+
+    for (int i = 0; i < ticks_to_extrapolate; ++i) {
+        float iter_sim_time = current_record->m_flSimulationTime + (static_cast<float>(i + 1) * time_delta_per_tick);
+
+        GlobalVars->curtime = iter_sim_time;
+        GlobalVars->frametime = time_delta_per_tick;
+        GlobalVars->tickcount = TIME_TO_TICKS(iter_sim_time);
+
+        player_animstate_ptr->bOnGround = (player->m_fFlags() & FL_ONGROUND) != 0;
+
+        if (player_animstate_ptr->nLastUpdateFrame >= GlobalVars->tickcount) {
+            player_animstate_ptr->nLastUpdateFrame = GlobalVars->tickcount - 1;
         }
-    }
-    
-    new_record->bone_matrix_filled = true; 
 
-    return new_record;
+        player_animstate_ptr->Update(current_record->m_angEyeAngles);
+    }
+
+    memcpy(extrapolated_rec->animlayers, player->GetAnimlayers(), sizeof(AnimationLayer) * 13);
+
+    GlobalVars->curtime = extrapolated_rec->m_flSimulationTime;
+    GlobalVars->tickcount = TIME_TO_TICKS(extrapolated_rec->m_flSimulationTime);
+
+    AnimationSystem->BuildMatrix(player, extrapolated_rec->bone_matrix, MAXSTUDIOBONES, BONE_USED_BY_HITBOX, extrapolated_rec->animlayers);
+    extrapolated_rec->bone_matrix_filled = true;
+
+    memcpy(extrapolated_rec->aim_matrix, extrapolated_rec->bone_matrix, sizeof(matrix3x4_t) * MAXSTUDIOBONES);
+
+
+    GlobalVars->curtime = g_backup_curtime;
+    GlobalVars->frametime = g_backup_frametime;
+    GlobalVars->tickcount = g_backup_tickcount;
+
+    player->m_vecOrigin() = backup_player_origin;
+    player->m_vecVelocity() = backup_player_velocity;
+    player->m_fFlags() = backup_player_flags;
+    player->SetAbsAngles(backup_player_abs_angles);
+    player->m_angEyeAngles() = backup_player_eye_angles;
+    player->m_flDuckAmount() = backup_player_duck_amount;
+    player->m_flLowerBodyYawTarget() = backup_player_lby;
+    player->m_flPoseParameter() = backup_player_pose_params;
+    memcpy(player->GetAnimlayers(), backup_player_layers, sizeof(AnimationLayer) * 13);
+    if (player->GetAnimstate()) {
+        *player->GetAnimstate() = backup_player_animstate_obj;
+    }
+    player->InvalidateBoneCache();
+
+    extrapolated_rec->invalid = false;
+    return extrapolated_rec;
 }
 
 

@@ -1,0 +1,22 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": ".\\.vs\\UtlReference.obj",
+            "outputs": [
+                ".\\.vs\\UtlReference.h_49CBDF18DF95E165.ifc.dt.module.json",
+                ".\\.vs\\UtlReference.h_49CBDF18DF95E165.ifc.dt.d.json",
+                ".\\.vs\\UtlReference.h.ifc"
+            ],
+            "provides": [
+                {
+                    "logical-name": "C:\\Users\\Dante\\Documents\\GitHub\\asdasdasd\\ArcticTech\\SDK\\Misc\\UtlReference.h",
+                    "source-path": "c:\\users\\dante\\documents\\github\\asdasdasd\\arctictech\\sdk\\misc\\utlreference.h",
+                    "lookup-method": "absolute"
+                }
+            ],
+            "requires": []
+        }
+    ]
+}

@@ -2,3 +2,5 @@
 // such as names of functions and macros.
 // For more information see https://go.microsoft.com/fwlink/?linkid=865984
 #define min(a, b) (((a) < (b)) ? (a) : (b))
+#define TIME_TO_TICKS(t) ((int)(0.5f + (float)(t) / GlobalVars->interval_per_tick))
+#define TIME_TO_TICKS(dt) ( (int)( 0.5f + (float)(dt) / GlobalVars->interval_per_tick ) )

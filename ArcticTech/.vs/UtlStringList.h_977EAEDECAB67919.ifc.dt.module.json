@@ -1,0 +1,22 @@
+{
+    "version": 1,
+    "revision": 0,
+    "rules": [
+        {
+            "primary-output": ".\\.vs\\UtlStringList.obj",
+            "outputs": [
+                ".\\.vs\\UtlStringList.h_977EAEDECAB67919.ifc.dt.module.json",
+                ".\\.vs\\UtlStringList.h_977EAEDECAB67919.ifc.dt.d.json",
+                ".\\.vs\\UtlStringList.h.ifc"
+            ],
+            "provides": [
+                {
+                    "logical-name": "C:\\Users\\Dante\\Documents\\GitHub\\asdasdasd\\ArcticTech\\SDK\\Misc\\UtlStringList.h",
+                    "source-path": "c:\\users\\dante\\documents\\github\\asdasdasd\\arctictech\\sdk\\misc\\utlstringlist.h",
+                    "lookup-method": "absolute"
+                }
+            ],
+            "requires": []
+        }
+    ]
+}

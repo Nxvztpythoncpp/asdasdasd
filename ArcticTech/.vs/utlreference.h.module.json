@@ -5,14 +5,14 @@
         {
             "primary-output": ".\\.vs\\UtlReference.h.obj",
             "outputs": [
-                "C:\\Users\\Dante\\Documents\\GitHub\\asdasdasd\\ArcticTech\\.vs\\vc143.pdb",
+                "C:\\Users\\Dante\\Documents\\GitHub\\Sunset-Internal-Csgo\\ArcticTech\\.vs\\vc143.pdb",
                 ".\\.vs\\",
-                "C:\\Users\\Dante\\Documents\\GitHub\\asdasdasd\\ArcticTech\\.vs\\UtlReference.h.ifc"
+                "C:\\Users\\Dante\\Documents\\GitHub\\Sunset-Internal-Csgo\\ArcticTech\\.vs\\UtlReference.h.ifc"
             ],
             "provides": [
                 {
                     "logical-name": "SDK\\Misc\\UtlReference.h",
-                    "source-path": "c:\\users\\dante\\documents\\github\\asdasdasd\\arctictech\\sdk\\misc\\utlreference.h",
+                    "source-path": "c:\\users\\dante\\documents\\github\\sunset-internal-csgo\\arctictech\\sdk\\misc\\utlreference.h",
                     "lookup-method": "absolute"
                 }
             ],

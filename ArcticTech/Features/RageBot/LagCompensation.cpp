@@ -6,7 +6,7 @@
 #include "../../SDK/Globals.h"    // Zawiera definicjê extern CVars cvars; i extern Ctx_t ctx;
 #include "../AntiAim/AntiAim.h"
 #include "../../Utils/Utils.h"
-#include <algorithm> // MASZ TO!
+#include <algorithm> 
 #include "../../SDK/NetMessages.h"
 #include "../Visuals/ESP.h"
 #include "Exploits.h"
@@ -91,77 +91,108 @@ void LagRecord::BuildMatrix() {
 }
 
 void CLagCompensation::OnNetUpdate() {
-	if (!Cheat.InGame)
-		return;
+    if (!Cheat.InGame)
+        return;
 
-	INetChannel* nc = ClientState->m_NetChannel;
-	auto nci = EngineClient->GetNetChannelInfo();
+    INetChannel* nc = ClientState->m_NetChannel;
+    auto nci = EngineClient->GetNetChannelInfo();    
 
-	for (int i = 0; i < ClientState->m_nMaxClients; i++) {
-		CBasePlayer* pl = (CBasePlayer*)EntityList->GetClientEntity(i);
+    for (int i = 0; i < ClientState->m_nMaxClients; i++) {
+        CBasePlayer* pl = (CBasePlayer*)EntityList->GetClientEntity(i);
 
-		if (!pl || !pl->IsAlive() || pl == Cheat.LocalPlayer || pl->m_bDormant())
-			continue;
+        if (!pl) {
+            
+            if (!lag_records[i].empty() || max_simulation_time[i] != 0.f) {
+                
+                lag_records[i].clear();
+                max_simulation_time[i] = 0.f;
+                last_update_tick[i] = 0;
+                if (Resolver)
+                    Resolver->Reset(nullptr);
+            }
+           
+            continue; 
+        }
 
-		auto& records = lag_records[i];
+        
+        auto& records = lag_records[i];
+       
+        bool came_from_dormancy_or_is_new = false;
+        
+        if (!pl->m_bDormant()) { 
+            if (records.empty() && (max_simulation_time[i] == 0.f)) { 
+              
+                came_from_dormancy_or_is_new = true;
+            }
+        }
+        
+        if (came_from_dormancy_or_is_new) {
+            records.clear();
+            max_simulation_time[i] = 0.f;
+            last_update_tick[i] = 0;
+            if (Resolver)
+                Resolver->Reset(pl);
+        }
 
-		if (!records.empty() && pl->m_flSimulationTime() == pl->m_flOldSimulationTime())
-			continue;
+        if (!pl->IsAlive() || pl == Cheat.LocalPlayer || pl->m_bDormant()) {
+            
+            continue;
+        }
+    
+        if (!records.empty() && pl->m_flSimulationTime() == pl->m_flOldSimulationTime()) {
+            continue;
+        }
 
-		LagRecord* prev_record = !records.empty() ? &records.front() : nullptr;
+        LagRecord* prev_record = !records.empty() ? &records.front() : nullptr;
 
-		if (prev_record && prev_record->player != pl) {
-			records.clear();
-			prev_record = nullptr;
-		}
+        if (prev_record && prev_record->player != pl) {             
+            records.clear();
+            max_simulation_time[i] = 0.f; 
+            last_update_tick[i] = 0;
+            if (Resolver) Resolver->Reset(pl); 
+            prev_record = nullptr;
+        }
+       
+        if (prev_record && prev_record->animlayers[ANIMATION_LAYER_ALIVELOOP].m_flCycle == pl->GetAnimlayers()[ANIMATION_LAYER_ALIVELOOP].m_flCycle
+            && pl->m_flSimulationTime() == prev_record->m_flSimulationTime) { 
+            pl->m_flOldSimulationTime() = pl->m_flSimulationTime(); 
+            continue;
+        }
 
-		if (prev_record && prev_record->animlayers[ANIMATION_LAYER_ALIVELOOP].m_flCycle == pl->GetAnimlayers()[ANIMATION_LAYER_ALIVELOOP].m_flCycle) {
-			pl->m_flOldSimulationTime() = pl->m_flSimulationTime();
-			continue;
-		}
+        LagRecord* new_record = &records.emplace_front();
 
-		LagRecord* new_record = &records.emplace_front();
+        new_record->prev_record = prev_record;
+        new_record->update_tick = GlobalVars->tickcount;
+        new_record->m_flSimulationTime = pl->m_flSimulationTime();
+        new_record->m_flServerTime = EngineClient->GetLastTimeStamp(); 
 
-		new_record->prev_record = prev_record;
-		new_record->update_tick = GlobalVars->tickcount;			
-		new_record->m_flSimulationTime = pl->m_flSimulationTime();
-		new_record->m_flServerTime = EngineClient->GetLastTimeStamp();
+        new_record->shifting_tickbase = max_simulation_time[i] >= new_record->m_flSimulationTime; // OK
 
-		new_record->shifting_tickbase = max_simulation_time[i] >= new_record->m_flSimulationTime;
+        if (new_record->m_flSimulationTime > max_simulation_time[i] || abs(max_simulation_time[i] - new_record->m_flSimulationTime) > 3.f) { // OK
+            max_simulation_time[i] = new_record->m_flSimulationTime;
+        }
 
-		if (new_record->m_flSimulationTime > max_simulation_time[i] || abs(max_simulation_time[i] - new_record->m_flSimulationTime) > 3.f)
-			max_simulation_time[i] = new_record->m_flSimulationTime;
+        last_update_tick[i] = GlobalVars->tickcount; // OK
 
-		last_update_tick[i] = GlobalVars->tickcount;
+        AnimationSystem->UpdateAnimations(pl, new_record, records); 
+        RecordDataIntoTrack(pl, new_record); 
 
-		AnimationSystem->UpdateAnimations(pl, new_record, records);
-		RecordDataIntoTrack(pl, new_record);
+        if (prev_record) { // OK
+            new_record->breaking_lag_comp = (prev_record->m_vecOrigin - new_record->m_vecOrigin).LengthSqr() > 4096.f;
+        }
+     
+        if (config.visuals.esp.shared_esp->get() && !EngineClient->IsVoiceRecording() && nc) {
+            
+        }
 
-		if (prev_record)
-			new_record->breaking_lag_comp = (prev_record->m_vecOrigin - new_record->m_vecOrigin).LengthSqr() > 4096.f;
+        while (records.size() > 32) { 
+            records.pop_back();
+        }
 
-		if (config.visuals.esp.shared_esp->get() && !EngineClient->IsVoiceRecording() && nc) {
-			if (config.visuals.esp.share_with_enemies->get() || !pl->IsTeammate()) {
-				SharedESP_t msg;
-
-				player_info_t pinfo;
-				EngineClient->GetPlayerInfo(i, &pinfo);
-
-				msg.m_iPlayer = pinfo.userId;
-				msg.m_ActiveWeapon = pl->GetActiveWeapon() ? pl->GetActiveWeapon()->m_iItemDefinitionIndex() : 0;
-				msg.m_iHealth = pl->m_iHealth();
-				msg.m_vecOrigin = new_record->m_vecOrigin;
-
-				NetMessages->SendNetMessage((SharedVoiceData_t*)&msg);
-			}
-		}
-
-		while (records.size() > 32)
-			records.pop_back();
-
-		if (config.visuals.esp.show_server_hitboxes->get() && nci && nci->IsLoopback())
-			pl->DrawServerHitboxes(GlobalVars->interval_per_tick, true);
-	}
+        if (config.visuals.esp.show_server_hitboxes->get() && nci && nci->IsLoopback()) { // OK
+            pl->DrawServerHitboxes(GlobalVars->interval_per_tick, true);
+        }
+    }
 }
 
 
@@ -180,12 +211,10 @@ LagRecord* CLagCompensation::ExtrapolateRecord(LagRecord* current_record, int ti
 
     const int max_reasonable_extrapolation_ticks_calculated = TIME_TO_TICKS(0.22f); // Zmieniona nazwa dla pewnoœci
 
-    // Zamiast std::min, u¿yjmy zwyk³ego if-a, ¿eby zobaczyæ, czy to przejdzie
     if (ticks_to_extrapolate > max_reasonable_extrapolation_ticks_calculated) {
         ticks_to_extrapolate = max_reasonable_extrapolation_ticks_calculated;
     }
 
-    // Teraz linia, która by³a oryginalnie 183 (if poni¿ej)
     if (ticks_to_extrapolate <= 0) {
         return nullptr;
     }
@@ -378,8 +407,9 @@ bool CLagCompensation::ValidRecord(LagRecord* record) {
 
     
     float oldest_acceptable_simtime_fudge_factor = 2.0f; 
+
     
-    float max_acceptable_simtime_difference_value = 0.05f; 
+    float max_acceptable_simtime_difference_value = 0.075f;
     
 
     float oldest_acceptable_simtime = estimated_current_server_simtime - sv_maxunlag - (oldest_acceptable_simtime_fudge_factor * GlobalVars->interval_per_tick);

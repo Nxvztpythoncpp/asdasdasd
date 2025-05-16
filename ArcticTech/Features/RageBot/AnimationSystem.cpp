@@ -425,39 +425,64 @@ void CAnimationSystem::UpdateAnimations(CBasePlayer* player, LagRecord* record, 
 	record->bone_matrix_filled = true;
 
 	if (player->IsEnemy()) {
+
+		CCSGOPlayerAnimationState* animstate_for_lby = player->GetAnimstate();
+		if (animstate_for_lby) {
+			auto pose_params_backup_for_lby = player->m_flPoseParameter();
+			QAngle abs_angles_backup_for_lby = player->GetAbsAngles();
+			*animstate_for_lby = unupdated_animstate[idx];
+			memcpy(player->GetAnimlayers(), record->animlayers, sizeof(AnimationLayer) * 13);
+			animstate_for_lby->flFootYaw = Math::AngleNormalize(player->m_flLowerBodyYawTarget());
+			animstate_for_lby->flEyeYaw = Math::AngleNormalize(player->m_flLowerBodyYawTarget());
+
+			player->SetAbsAngles(QAngle(0.f, animstate_for_lby->flFootYaw, 0.f));
+
+			player->UpdateClientSideAnimation();
+
+			hook_info.disable_clamp_bones = true;
+			BuildMatrix(player, record->opposite_matrix, 128, BONE_USED_BY_HITBOX, player->GetAnimlayers());
+			hook_info.disable_clamp_bones = false;
+
+			player->m_flPoseParameter() = pose_params_backup_for_lby;
+			player->SetAbsAngles(abs_angles_backup_for_lby);
+
+		}
+
 		float deltaOriginal = Math::AngleDiff(animstate->flEyeYaw, animstate->flFootYaw);
 		float eyeYawNew = Math::AngleNormalize(animstate->flEyeYaw + deltaOriginal);
 		player->SetAbsAngles(QAngle(0, eyeYawNew, 0));
-		player->m_flPoseParameter()[BODY_YAW] = 1.f - player->m_flPoseParameter()[BODY_YAW]; // opposite side
+		player->m_flPoseParameter()[BODY_YAW] = 1.f - player->m_flPoseParameter()[BODY_YAW];
+		BuildMatrix(player, record->opposite_matrix, 128, BONE_USED_BY_HITBOX, record->animlayers);
 
 		hook_info.disable_clamp_bones = true;
 		BuildMatrix(player, record->opposite_matrix, 128, BONE_USED_BY_HITBOX, record->animlayers);
 		hook_info.disable_clamp_bones = false;
 
-		if (config.ragebot.aimbot.show_aimpoints->get())
+		if (config.ragebot.aimbot.show_aimpoints->get()) {
 			DebugOverlay->AddBoxOverlay(player->GetHitboxCenter(HITBOX_HEAD, record->opposite_matrix), Vector(-1, -1, -1), Vector(1, 1, 1), QAngle(), 12, 255, 12, 160, 0.1f);
+		}
+
+		player->m_nOcclusionFrame() = nOcclusionFrame;
+		player->m_nOcclusionFlags() = nOcclusionMask;
+		player->m_iEFlags() = backupiEFlags;
+
+		player->SetAbsOrigin(backupAbsOrigin);
+		player->m_vecAbsVelocity() = backupAbsVelocity;
+
+		GlobalVars->realtime = backupRealtime;
+		GlobalVars->curtime = backupCurtime;
+		GlobalVars->frametime = backupFrametime;
+		GlobalVars->absoluteframetime = backupAbsFrametime;
+		GlobalVars->interpolation_amount = backupInterp;
+		GlobalVars->tickcount = backupTickcount;
+		GlobalVars->framecount = backupFramecount;
+
+		player->SetAbsAngles(backupAbsAngles);
+		player->m_flLowerBodyYawTarget() = backupLBY;
+		memcpy(player->GetAnimlayers(), record->animlayers, sizeof(AnimationLayer) * 13);
+		memcpy(player->GetCachedBoneData().Base(), record->bone_matrix, sizeof(matrix3x4_t) * player->GetCachedBoneData().Count());
+		player->m_flPoseParameter() = pose_params;
 	}
-
-	player->m_nOcclusionFrame() = nOcclusionFrame;
-	player->m_nOcclusionFlags() = nOcclusionMask;
-	player->m_iEFlags() = backupiEFlags;
-
-	player->SetAbsOrigin(backupAbsOrigin);
-	player->m_vecAbsVelocity() = backupAbsVelocity;
-
-	GlobalVars->realtime = backupRealtime;
-	GlobalVars->curtime = backupCurtime;
-	GlobalVars->frametime = backupFrametime;
-	GlobalVars->absoluteframetime = backupAbsFrametime;
-	GlobalVars->interpolation_amount = backupInterp;
-	GlobalVars->tickcount = backupTickcount;
-	GlobalVars->framecount = backupFramecount;
-	
-	player->SetAbsAngles(backupAbsAngles);
-	player->m_flLowerBodyYawTarget() = backupLBY;
-	memcpy(player->GetAnimlayers(), record->animlayers, sizeof(AnimationLayer) * 13);
-	memcpy(player->GetCachedBoneData().Base(), record->bone_matrix, sizeof(matrix3x4_t) * player->GetCachedBoneData().Count());
-	player->m_flPoseParameter() = pose_params;
 }
 
 Vector CAnimationSystem::GetInterpolated(CBasePlayer* player) {

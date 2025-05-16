@@ -72,41 +72,98 @@ R_PlayerState CResolver::DetectPlayerState(CBasePlayer* player, AnimationLayer* 
 }
 
 R_AntiAimType CResolver::DetectAntiAim(CBasePlayer* player, const std::deque<LagRecord>& records) {
-	if (records.size() < 8)
+	
+	auto& p_data = resolver_data[player->EntIndex()];
+
+	const size_t min_records_for_analysis = 3;
+	if (records.size() < min_records_for_analysis) {
 		return R_AntiAimType::NONE;
-
-	int jittered_records_count = 0;
-	float total_delta_sum = 0.f;
-	int considered_records = 0;
-
-	if (records.empty()) return R_AntiAimType::NONE;
-	if (records.size() <= 1) return R_AntiAimType::NONE;
-
-	float last_yaw = records.front().m_angEyeAngles.yaw;
-
-	size_t num_to_check = (std::min)(static_cast<size_t>(7), records.size() - 1);
-
-	for (size_t i = 0; i < num_to_check; ++i) {
-		if (records.size() <= (i + 1)) break;
-		const LagRecord& current_record = records[i];
-		const LagRecord& prev_record = records[i + 1];
-
-		float delta = std::fabs(Math::AngleDiff(current_record.m_angEyeAngles.yaw, prev_record.m_angEyeAngles.yaw));
-		total_delta_sum += delta;
-		considered_records++;
-
-		if (delta > 30.f)
-			jittered_records_count++;
 	}
 
-	if (considered_records == 0) return R_AntiAimType::NONE;
+	const LagRecord& current_record = records.front();
+	if (p_data.lby_updated_this_tick) {
+		return R_AntiAimType::LBY_BREAK;
+	}
 
-	float average_delta = total_delta_sum / static_cast<float>(considered_records);
+	
+	if (records.size() >= 3) {
+		float yaw_diff1 = Math::AngleDiff(records[0].m_angEyeAngles.yaw, records[1].m_angEyeAngles.yaw);
+		float yaw_diff2 = Math::AngleDiff(records[1].m_angEyeAngles.yaw, records[2].m_angEyeAngles.yaw);
+		const float spin_threshold = 45.f; 
 
-	if (jittered_records_count >= (considered_records / 2) && average_delta > 20.f)
-		return R_AntiAimType::JITTER;
-	if (average_delta < 15.f)
-		return R_AntiAimType::STATIC;
+		bool is_spinning = false;
+		if (std::fabs(yaw_diff1) > spin_threshold && std::fabs(yaw_diff2) > spin_threshold) {
+			if ((yaw_diff1 > 0 && yaw_diff2 > 0) || (yaw_diff1 < 0 && yaw_diff2 < 0)) { 
+				
+				if (records.size() >= 4) {
+					float yaw_diff3 = Math::AngleDiff(records[2].m_angEyeAngles.yaw, records[3].m_angEyeAngles.yaw);
+					if (std::fabs(yaw_diff3) > spin_threshold && ((yaw_diff2 > 0 && yaw_diff3 > 0) || (yaw_diff2 < 0 && yaw_diff3 < 0))) {
+						is_spinning = true;
+					}
+				}
+				else {
+					is_spinning = true; 
+				}
+			}
+		}
+		if (is_spinning) {
+			return R_AntiAimType::SPIN; 
+		}
+	}
+
+	bool lby_is_considered_stable = (current_record.m_flSimulationTime - p_data.last_lby_update_time > 0.22f) &&
+		(current_record.m_flSimulationTime - p_data.last_lby_update_time < 1.0f) &&
+		!p_data.lby_updated_this_tick; 
+
+	if (lby_is_considered_stable && records.size() >= 2) {
+		if (std::fabs(Math::AngleDiff(records.front().player->m_flLowerBodyYawTarget(), records[1].player->m_flLowerBodyYawTarget())) > 1.f) {
+			lby_is_considered_stable = false; 
+		}
+	}
+
+	if (lby_is_considered_stable) {
+		float desync_delta = Math::AngleDiff(current_record.m_angEyeAngles.yaw, p_data.last_lby);
+		const float min_static_desync_threshold = 25.f; 
+		const float max_static_desync_threshold = 65.f;
+
+		if (std::fabs(desync_delta) >= min_static_desync_threshold && std::fabs(desync_delta) <= max_static_desync_threshold) {
+			
+			return R_AntiAimType::STATIC_DESYNC;
+		}
+	}
+
+	if (records.size() >= 3) { 
+		int jittered_records_count_fallback = 0;
+		float total_delta_sum_fallback = 0.f;
+		int considered_records_fallback = 0;
+
+		for (size_t i = 0; i < (std::min)(records.size() - 1, (size_t)2); ++i) {
+			const LagRecord& rec1 = records[i];
+			const LagRecord& rec2 = records[i + 1];
+			float delta = std::fabs(Math::AngleDiff(rec1.m_angEyeAngles.yaw, rec2.m_angEyeAngles.yaw));
+			total_delta_sum_fallback += delta;
+			considered_records_fallback++;
+			if (delta > 30.f) { 
+				jittered_records_count_fallback++;
+			}
+		}
+
+		if (considered_records_fallback > 0) {
+			float average_delta_fallback = total_delta_sum_fallback / static_cast<float>(considered_records_fallback);
+			if (jittered_records_count_fallback >= considered_records_fallback / 2 && average_delta_fallback > 20.f) {
+				return R_AntiAimType::JITTER;
+			}
+			if (average_delta_fallback < 15.f && jittered_records_count_fallback == 0) {
+				
+				if (lby_is_considered_stable && std::fabs(Math::AngleDiff(current_record.m_angEyeAngles.yaw, p_data.last_lby)) > 20.f) {
+					
+				}
+				else {
+					return R_AntiAimType::STATIC;
+				}
+			}
+		}
+	}
 
 	return R_AntiAimType::UNKNOWN;
 }
@@ -215,16 +272,44 @@ void CResolver::DetectFreestand(CBasePlayer* player, LagRecord* record, const st
 }
 
 void CResolver::Apply(LagRecord* record) {
-	if (!record || !record->player) return;
-	if (record->resolver_data.side != 0) {
-		float body_yaw_offset = record->resolver_data.max_desync_delta * static_cast<float>(record->resolver_data.side);
-		CCSGOPlayerAnimationState* state = record->player->GetAnimstate();
-		if (!state) return;
-		state->flFootYaw = Math::AngleNormalize(state->flEyeYaw + body_yaw_offset);
+
+	if (!record || !record->player) {
+		
+		return;
 	}
+
+	CCSGOPlayerAnimationState* animstate = record->player->GetAnimstate();
+	if (!animstate) {
+		
+		return;
+	}
+	
+	if (record->resolver_data.side != 0 &&
+		record->resolver_data.resolver_type != ResolverType::NONE &&
+		record->resolver_data.resolver_type != ResolverType::DEFAULT &&
+		record->resolver_data.resolver_type != ResolverType::MEMORY) {
+
+		float resolved_desync_angle = static_cast<float>(record->resolver_data.side) * record->resolver_data.max_desync_delta;
+		float new_foot_yaw = Math::AngleNormalize(animstate->flEyeYaw + resolved_desync_angle);
+
+		animstate->flFootYaw = new_foot_yaw; 
+
+	}
+	
 }
 
 void CResolver::Run(CBasePlayer* player, LagRecord* record, std::deque<LagRecord>& records) {
+
+	auto& p_data = resolver_data[player->EntIndex()];
+	p_data.lby_updated_this_tick = false;
+	if (record->player->m_flLowerBodyYawTarget() != p_data.last_lby) {
+		if (record->m_flSimulationTime > p_data.last_lby_update_time) { 
+			p_data.lby_updated_this_tick = true;
+			p_data.last_lby = record->player->m_flLowerBodyYawTarget();
+			p_data.last_lby_update_time = record->m_flSimulationTime;
+		}
+	}
+
 	if (!player || !record || !Cheat.LocalPlayer || !Cheat.LocalPlayer->IsAlive()) return;
 	if (GameRules()->IsFreezePeriod() || player->m_fFlags() & FL_FROZEN || record->shooting) {
 		record->resolver_data.side = 0;

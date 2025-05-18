@@ -468,33 +468,34 @@ void CResolver::Run(CBasePlayer* player, LagRecord* record, std::deque<LagRecord
 
 	
 	if (record->resolver_data.resolver_type == ResolverType::NONE ||
-		(record->resolver_data.resolver_type == ResolverType::ANIM && min_move_layer_delta > 8.f)) { // Próg 8.f
+		(record->resolver_data.resolver_type == ResolverType::ANIM && min_move_layer_delta > 8.f)) { 
 
 		if (record->resolver_data.antiaim_type == R_AntiAimType::JITTER) {
-			if (p_data.jitter_pattern_detected) {
-				
-				record->resolver_data.side = (p_data.missed_shots % 2 == 0) ? 1 : -1; 
+			if (p_data.jitter_pattern_detected) { 
 				
 				record->resolver_data.resolver_type = ResolverType::LOGIC;
-				
 			}
-			else {
+			else { 
 				if (records.size() >= 5) {
-					float eyeYaw = player->m_angEyeAngles().yaw; 
+					float eyeYaw = player->m_angEyeAngles().yaw;
 					float avgPrevEyeYaw = FindAvgYaw(records, 5, 0.5f);
 					float delta_from_avg = Math::AngleDiff(eyeYaw, avgPrevEyeYaw);
-					if (std::abs(delta_from_avg) > 5.f) { 
+					if (std::abs(delta_from_avg) > 5.f) {
 						record->resolver_data.side = (delta_from_avg < 0.f) ? 1 : -1;
 						record->resolver_data.resolver_type = ResolverType::LOGIC;
 					}
-					else { 
+					else {
 						DetectFreestand(player, record, records);
 					}
 				}
-				else { 
+				else {
 					DetectFreestand(player, record, records);
 				}
 			}
+		}
+		else if (record->resolver_data.antiaim_type == R_AntiAimType::STATIC_DESYNC) { 
+		
+			DetectFreestand(player, record, records);
 		}
 		else { 
 			DetectFreestand(player, record, records);

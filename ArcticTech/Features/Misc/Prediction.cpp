@@ -84,7 +84,7 @@ void CPrediction::Start(CUserCmd* cmd) {
 	GlobalVars->frametime = Prediction->bEnginePaused ? 0.f : GlobalVars->interval_per_tick;
 
 	Prediction->bInPrediction = true;
-	Prediction->bIsFirstTimePredicted = false;
+	Prediction->bIsFirstTimePredicted = true;
 
 	GameMovement->StartTrackPredictionErrors(Cheat.LocalPlayer);
 
@@ -94,8 +94,8 @@ void CPrediction::Start(CUserCmd* cmd) {
 	Prediction->CheckMovingGround(Cheat.LocalPlayer, GlobalVars->frametime);
 	Prediction->SetLocalViewAngles(cmd->viewangles);
 
-	//RunPreThink(Cheat.LocalPlayer);
-	//RunThink(Cheat.LocalPlayer);
+	RunPreThink(Cheat.LocalPlayer); //FIXED BY DANTEZ
+	RunThink(Cheat.LocalPlayer); //FIXED BY DANTEZ
 
 	MoveHelper->SetHost(Cheat.LocalPlayer);
 	Prediction->SetupMove(Cheat.LocalPlayer, cmd, MoveHelper, &moveData);
@@ -135,7 +135,12 @@ void CPrediction::End() {
 
 	if (ctx.active_weapon) {
 		ctx.active_weapon->m_fAccuracyPenalty() = weaponAccuracyPenality;
-		ctx.active_weapon->m_flRecoilIndex() = weaponRecoilIndex;
+		ctx.active_weapon->m_flRecoilIndex() = weaponRecoilIndex; 
+		//--------------------IF RunThink IS ACTIVE OG GOD-----------------------------
+		ctx.active_weapon->m_flNextPrimaryAttack() = pre_prediction.m_flNextPrimaryAttack; 
+		if (ctx.active_weapon->IsGrenade()) {
+			reinterpret_cast<CBaseGrenade*>(ctx.active_weapon)->m_flThrowTime() = pre_prediction.m_fThrowTime;
+		}
 	}
 
 	GameMovement->Reset();
@@ -161,6 +166,12 @@ void CPrediction::Repredict(CUserCmd* cmd, QAngle angles) {
 	Cheat.LocalPlayer->m_hGroundEntity() = pre_prediction.m_hGroundEntity;
 	Cheat.LocalPlayer->m_vecMins() = pre_prediction.m_vecMins;
 	Cheat.LocalPlayer->m_vecMaxs() = pre_prediction.m_vecMaxs;
+
+	GlobalVars->curtime = TICKS_TO_TIME(Cheat.LocalPlayer->m_nTickBase());
+	GlobalVars->frametime = Prediction->bEnginePaused ? 0.f : GlobalVars->interval_per_tick;
+
+	Prediction->bInPrediction = true;
+	Prediction->bIsFirstTimePredicted = false;
 
 	GameMovement->StartTrackPredictionErrors(Cheat.LocalPlayer);
 	MoveHelper->SetHost(Cheat.LocalPlayer);
